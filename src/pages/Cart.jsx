@@ -1,93 +1,18 @@
 import React from "react";
-import { useEffect } from "react";
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import Preloader from "../components/Preloader";
-import BackToTop from "../components/BackToTop";
+import { useContext, useState, useEffect } from "react";
+import { CartContext } from "../context/cartContext";
 
 const Cart = () => {
-  const [isLoading, setIsLoading] = useState(true);
+  const { cartItems, removeFromCart, updateQuantity, cartTotal, clearCart } =
+    useContext(CartContext);
 
-  useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Cart items data
-  const cartItems = [
-    {
-      id: 1,
-      name: "Simple Things You To Save Book",
-      price: 30.0,
-      quantity: 1,
-      image: "assets/img/shop-cart/01.png",
-      subtotal: 120.0,
-    },
-    {
-      id: 2,
-      name: "Qple GPad With Retina Sisplay",
-      price: 30.0,
-      quantity: 1,
-      image: "assets/img/shop-cart/02.png",
-      subtotal: 120.0,
-    },
-    {
-      id: 3,
-      name: "Flovely and Unicom Erna",
-      price: 30.0,
-      quantity: 1,
-      image: "assets/img/shop-cart/03.png",
-      subtotal: 120.0,
-    },
-  ];
-
-  // Cart totals
-  const cartTotals = {
-    subtotal: 84.0,
-    shipping: "Free",
-    total: 84.0,
+  const handleQuantityChange = (itemId, newQuantity) => {
+    updateQuantity(itemId, parseInt(newQuantity) || 1);
   };
 
   return (
     <>
-      {/* Preloader */}
-      {isLoading && <Preloader />}
-
-      {/* Back To Top */}
-      <BackToTop />
-      {/* Breadcrumb Section Start */}
-      <div className="breadcrumb-wrapper">
-        <div className="book1">
-          <img src="assets/img/hero/book1.png" alt="book" />
-        </div>
-        <div className="book2">
-          <img src="assets/img/hero/book2.png" alt="book" />
-        </div>
-        <div className="container">
-          <div className="page-heading">
-            <h1>Cart</h1>
-            <div className="page-header">
-              <ul
-                className="breadcrumb-items wow fadeInUp"
-                data-wow-delay=".3s"
-              >
-                <li>
-                  <Link to="/">Home</Link>
-                </li>
-                <li>
-                  <i className="fa-solid fa-chevron-right"></i>
-                </li>
-                <li>Cart</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Shop Cart Section Start */}
       <div className="cart-section section-padding">
         <div className="container">
@@ -98,7 +23,7 @@ const Cart = () => {
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Product</th>
+                        <th style={{ paddingLeft: "50px" }}>Product</th>
                         <th>Price</th>
                         <th>Quantity</th>
                         <th>Subtotal</th>
@@ -108,28 +33,39 @@ const Cart = () => {
                       {cartItems.map((item) => (
                         <tr key={item.id}>
                           <td>
-                            <span className="d-flex gap-5 align-items-center">
-                              <Link to="/shop-cart" className="remove-icon">
+                            <span className="d-flex gap-5 align-items-center cart-price">
+                              <button
+                                onClick={() => removeFromCart(item.id)}
+                                className="remove-icon"
+                              >
                                 <img
                                   src="assets/img/icon/icon-9.svg"
-                                  alt="img"
+                                  alt="Remove"
                                 />
-                              </Link>
+                              </button>
                               <span className="cart">
-                                <img src={item.image} alt="img" />
+                                <img src={item.image} alt={item.name} />
                               </span>
                               <span className="cart-title">{item.name}</span>
                             </span>
                           </td>
                           <td>
                             <span className="cart-price">
-                              ${item.price.toFixed(2)}
+                              ৳{item.price.toFixed(2)}
                             </span>
                           </td>
                           <td>
-                            <span className="quantity-basket">
+                            <span className="quantity-basket cart-price">
                               <span className="qty">
-                                <button className="qtyminus" aria-hidden="true">
+                                <button
+                                  className="qtyminus"
+                                  onClick={() =>
+                                    handleQuantityChange(
+                                      item.id,
+                                      item.quantity - 1
+                                    )
+                                  }
+                                >
                                   −
                                 </button>
                                 <input
@@ -138,19 +74,31 @@ const Cart = () => {
                                   id={`qty${item.id}`}
                                   min="1"
                                   max="10"
-                                  step="1"
                                   value={item.quantity}
-                                  onChange={() => {}}
+                                  onChange={(e) =>
+                                    handleQuantityChange(
+                                      item.id,
+                                      e.target.value
+                                    )
+                                  }
                                 />
-                                <button className="qtyplus" aria-hidden="true">
+                                <button
+                                  className="qtyplus"
+                                  onClick={() =>
+                                    handleQuantityChange(
+                                      item.id,
+                                      item.quantity + 1
+                                    )
+                                  }
+                                >
                                   +
                                 </button>
                               </span>
                             </span>
                           </td>
                           <td>
-                            <span className="subtotal-price">
-                              ${item.subtotal.toFixed(2)}
+                            <span className="subtotal-price cart-price">
+                              ৳{(item.price * item.quantity).toFixed(2)}
                             </span>
                           </td>
                         </tr>
@@ -158,24 +106,24 @@ const Cart = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="cart-wrapper-footer">
-                  <form>
-                    <div className="input-area">
-                      <input
-                        type="text"
-                        name="Coupon Code"
-                        id="CouponCode"
-                        placeholder="Coupon Code"
-                      />
-                      <button type="submit" className="theme-btn">
-                        Apply
-                      </button>
-                    </div>
-                  </form>
-                  <Link to="/shop-cart" className="theme-btn">
-                    Update Cart
-                  </Link>
-                </div>
+                {cartItems.length > 0 ? (
+                  <div className="cart-wrapper-footer">
+                    <button onClick={clearCart} className="theme-btn">
+                      Clear Cart
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className="cart-empty-message text-center"
+                    style={{ padding: "20px", fontSize: "16px" }}
+                  >
+                    <i
+                      className="fas fa-shopping-cart"
+                      style={{ fontSize: "20px", marginRight: "8px" }}
+                    ></i>
+                    Your cart is empty
+                  </div>
+                )}
               </div>
               <div className="col-xl-3">
                 <div className="table-responsive cart-total">
@@ -186,32 +134,30 @@ const Cart = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
+                      {/* <tr>
                         <td>
                           <span className="d-flex gap-5 align-items-center justify-content-between">
                             <span className="sub-title">Subtotal:</span>
                             <span className="sub-price">
-                              ${cartTotals.subtotal.toFixed(2)}
+                              ৳{cartTotal.toFixed(2)}
                             </span>
                           </span>
                         </td>
-                      </tr>
-                      <tr>
+                      </tr> */}
+                      {/* <tr>
                         <td>
                           <span className="d-flex gap-5 align-items-center justify-content-between">
                             <span className="sub-title">Shipping:</span>
-                            <span className="sub-text">
-                              {cartTotals.shipping}
-                            </span>
+                            <span className="sub-text">Free</span>
                           </span>
                         </td>
-                      </tr>
+                      </tr> */}
                       <tr>
                         <td>
                           <span className="d-flex gap-5 align-items-center justify-content-between">
                             <span className="sub-title">Total:</span>
                             <span className="sub-price sub-price-total">
-                              ${cartTotals.total.toFixed(2)}
+                              ৳{cartTotal.toFixed(2)}
                             </span>
                           </span>
                         </td>

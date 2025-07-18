@@ -1,54 +1,45 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import Preloader from "../components/Preloader";
-import BackToTop from "../components/BackToTop";
+import { useContext } from "react";
 
 const Contact = () => {
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
   // Contact information data
   const contactInfo = [
     {
       icon: "icon-icon-10",
       title: "Call Us 7/24",
-      content: <Link to="tel:+2085550112">+208-555-0112</Link>,
+      content: <Link to="tel:+8801842273787">+880-18-42273787</Link>,
       hasBorder: true,
     },
-    {
-      icon: "icon-icon-11",
-      title: "Make a Quote",
-      content: <Link to="mailto:example@gmail.com">example@gmail.com</Link>,
-      hasBorder: true,
-    },
+    // {
+    //   icon: "icon-icon-11",
+    //   title: "Make a Quote",
+    //   content: <Link to="mailto:example@gmail.com">example@gmail.com</Link>,
+    //   hasBorder: true,
+    // },
     {
       icon: "icon-icon-12",
       title: "Location",
-      content: "4517 Washington ave.",
+      content: "Pallabi, Mirpur 12, Dhaka",
       hasBorder: false,
     },
   ];
 
   return (
     <>
-      {/* Preloader */}
-      {isLoading && <Preloader />}
-
-      {/* Back To Top */}
-      <BackToTop />
       {/* Breadcrumb Section Start */}
       <div className="breadcrumb-wrapper">
         <div className="book1">
-          <img src="assets/img/hero/book1.png" alt="book" />
+          <img
+            src="assets/img/Provided_Images/Compressed Image/Antik_head__1.png"
+            alt="book"
+          />
         </div>
         <div className="book2">
-          <img src="assets/img/hero/book2.png" alt="book" />
+          <img
+            src="assets/img/Provided_Images/Compressed Image/1.webp"
+            alt="book"
+          />
         </div>
         <div className="container">
           <div className="page-heading">
@@ -59,7 +50,7 @@ const Contact = () => {
                 data-wow-delay=".3s"
               >
                 <li>
-                  <Link to="/">Home</Link>
+                  <Link to="/">Shop</Link>
                 </li>
                 <li>
                   <i className="fa-solid fa-chevron-right"></i>
@@ -96,7 +87,7 @@ const Contact = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="video-image">
+                  {/* <div className="video-image">
                     <img src="assets/img/contact.jpg" alt="contact" />
                     <div className="video-box">
                       <Link
@@ -108,19 +99,12 @@ const Contact = () => {
                         <i className="fa-solid fa-play"></i>
                       </Link>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               </div>
-              <div className="col-lg-8">
+              {/* <div className="col-lg-8">
                 <div className="contact-content">
-                  <h2>Ready to Get Started?</h2>
-                  <p>
-                    Nunc tincidunt cursus lectus ac semper. Aenean ullamcorper
-                    quis arcu molestie consequat. Interdum et malesuada fames ac
-                    ante ipsum primis in faucibus. Ut nec lobortis elit, eu
-                    ultrices justo. Fusce auctor erat est, non fringilla nibh
-                    tempus quis. Aenean dignissim
-                  </p>
+                  <h2>Contact US</h2>
                   <form id="contact-form" className="contact-form-items">
                     <div className="row g-4">
                       <div
@@ -176,7 +160,7 @@ const Contact = () => {
                     </div>
                   </form>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -187,7 +171,7 @@ const Contact = () => {
         <div className="map-items">
           <div className="googpemap">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d6678.7619084840835!2d144.9618311901502!3d-37.81450084255415!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x6ad642b4758afc1d%3A0x3119cc820fdfc62e!2sEnvato!5e0!3m2!1sen!2sbd!4v1641984054261!5m2!1sen!2sbd"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3650.0465769843745!2d90.36809901727949!3d23.816942723782216!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3755c17169e2be61%3A0x8e76d88f0eccddc1!2sPallabi%20Mirpur-12%20Dhaka%201216!5e0!3m2!1sen!2sbd!4v1750250461458!5m2!1sen!2sbd"
               style={{ border: 0 }}
               allowFullScreen
               loading="lazy"

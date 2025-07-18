@@ -455,10 +455,10 @@
         });
 
         // 14.Category-click
-        $(".bd-category__click").click(function () {
-            $(this).siblings(".category__items, .category__items-2, .category__items-3, .category__items-4").slideToggle();
-            $(this).toggleClass("items-open");
-        });
+        // $(".bd-category__click").click(function () {
+        //     $(this).siblings(".category__items, .category__items-2, .category__items-3, .category__items-4").slideToggle();
+        //     $(this).toggleClass("items-open");
+        // });
 
         //  15.Gsap Animation 
         // if ($('.cursor-follower').length > 0) {

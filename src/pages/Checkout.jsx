@@ -1,310 +1,414 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import Preloader from "../components/Preloader";
-import { useEffect } from "react";
-import { useState } from "react";
-import BackToTop from "../components/BackToTop";
+import { useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import { CartContext } from "../context/cartContext";
+import { supabase } from "../lib/supabase";
+import axios from "axios";
 
-const Checkout = () => {
-  const [isLoading, setIsLoading] = useState(true);
+function CheckoutPage() {
+  const {
+    cartItems,
+    cartTotal,
+    shippingCost,
+    totalWithShipping,
+    shippingLocation,
+    setShippingLocation,
+    hasDiscountedShippingOffer,
+  } = useContext(CartContext);
 
-  useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
+  const [formData, setFormData] = useState({
+    name: "",
+    address: "",
+    postalCode: "",
+    city: "",
+    phone: "",
+    email: "",
+    notes: "",
+  });
 
-    return () => clearTimeout(timer);
-  }, []);
-  // Order data
-  const orderItems = [{ name: "Fashion Women's 1", price: 29.0 }];
+  const [errors, setErrors] = useState({});
+  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const navigate = useNavigate();
 
-  const shippingOptions = [
-    { id: "free", label: "Free Shipping", price: 0 },
-    { id: "local", label: "Local: $15.00", price: 15.0 },
-    { id: "flat", label: "Flat rate: $10.00", price: 10.0 },
-  ];
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "city") {
+      const lowerCity = value.toLowerCase();
+      setShippingLocation(lowerCity.includes("dhaka") ? "inside" : "outside");
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
-  const paymentMethods = [
-    {
-      id: "bank",
-      label: "Direct bank transfer",
-      description:
-        "Make your payment directly into our bank account please use your Order ID as the payment reference. Your order will not be shipped until the funds have cleared in our account.",
-    },
-    { id: "cod", label: "Cash on delivery" },
-    {
-      id: "paypal",
-      label: "Paypal",
-      logos: ["PayPal.png", "GooglePay.png", "Mastercard2.png"],
-    },
-  ];
+  const validateForm = () => {
+    const newErrors = {};
 
-  // Calculate totals
-  const subtotal = orderItems.reduce((sum, item) => sum + item.price, 0);
-  const [selectedShipping, setSelectedShipping] = React.useState(
-    shippingOptions[0]
-  );
-  const total = subtotal + selectedShipping.price;
+    if (!formData.name.trim()) newErrors.name = "Full name is required.";
+    if (!formData.address.trim())
+      newErrors.address = "Street address is required.";
+
+    if (!formData.postalCode) {
+      newErrors.postalCode = "Postal code is required.";
+    } else if (!/^\d{4}$/.test(formData.postalCode)) {
+      newErrors.postalCode = "Postal code must be exactly 4 digits.";
+    }
+
+    if (!formData.city) newErrors.city = "City/Town is required.";
+
+    if (!formData.phone) {
+      newErrors.phone = "Phone number is required.";
+    } else if (!/^\d{11}$/.test(formData.phone)) {
+      newErrors.phone = "Phone number must be exactly 11 digits.";
+    }
+
+    if (!formData.email) {
+      newErrors.email = "Email is required.";
+    } else if (!/^[\w.+-]+@gmail\.com$/.test(formData.email)) {
+      newErrors.email = "Only Gmail addresses are allowed.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) return;
+
+    setIsProcessing(true);
+
+    const orderData = {
+      customer_name: formData.name,
+      customer_email: formData.email,
+      customer_phone: formData.phone,
+      customer_address: formData.address,
+      customer_postal: formData.postalCode,
+      customer_city: formData.city,
+      notes: formData.notes,
+      items: cartItems,
+      subtotal: cartTotal,
+      shipping_cost: shippingCost,
+      total: totalWithShipping,
+      payment_method: paymentMethod,
+      shipping_location: shippingLocation,
+      has_discounted_shipping: hasDiscountedShippingOffer(),
+      status: "pending",
+      payment_status: "pending",
+      created_at: new Date().toISOString(),
+      // New fields for hybrid payment
+      payment_type: paymentMethod === "cod" ? "cod_partial" : "full_payment",
+      advance_payment:
+        paymentMethod === "cod" ? shippingCost : totalWithShipping,
+      remaining_amount: paymentMethod === "cod" ? cartTotal : 0,
+    };
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([orderData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error saving order:", error);
+      alert("Order failed. Please try again.");
+      setIsProcessing(false);
+      return;
+    }
+
+    await processSSLCommerzPayment(data);
+  };
+  // Update the processSSLCommerzPayment function in your CheckoutPage component
+  const processSSLCommerzPayment = async (orderData) => {
+    try {
+      setIsProcessing(true);
+
+      // Determine payment amount based on payment method
+      const paymentAmount =
+        orderData.payment_method === "cod"
+          ? orderData.shipping_cost
+          : orderData.total;
+
+      const paymentData = {
+        orderData: {
+          ...orderData,
+          // For COD, we only charge shipping cost
+          total: paymentAmount,
+        },
+        customer: {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          postalCode: formData.postalCode,
+        },
+        cartItems: cartItems,
+      };
+      console.log(`${import.meta.env.VITE_BACKEND_URL}/api/payment/initiate`);
+      // Call your backend to initiate payment using Axios
+      const response = await axios.post(
+        `${import.meta.env.VITE_BACKEND_URL}/api/payment/initiate`,
+        paymentData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          withCredentials: false,
+        }
+      );
+
+      const result = response.data;
+
+      if (!result.success) {
+        throw new Error(result.message || "Payment initiation failed");
+      }
+
+      // Update order with transaction ID and payment status
+
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({
+          sslcommerz_tran_id: result.tran_id,
+          payment_status:
+            orderData.payment_method === "cod"
+              ? "delivery_payment_option"
+              : "fully_payment_option",
+          status: "processing",
+        })
+        .eq("id", orderData.id);
+
+      if (updateError) throw updateError;
+
+      // Redirect to payment gateway
+      window.location.href = result.gateway_url;
+    } catch (error) {
+      console.error("Payment processing failed:", error);
+      alert(`Payment failed: ${error.message}`);
+
+      // Revert order status if needed
+      if (orderData?.id) {
+        await supabase.from("orders").delete().eq("id", orderData.id);
+      }
+
+      setIsProcessing(false);
+    }
+  };
 
   return (
-    <>
-      {/* Preloader */}
-      {isLoading && <Preloader />}
-
-      {/* Back To Top */}
-      <BackToTop />
-      {/* Breadcrumb Section Start */}
-      <div className="breadcrumb-wrapper">
-        <div className="book1">
-          <img src="assets/img/hero/book1.png" alt="book" />
-        </div>
-        <div className="book2">
-          <img src="assets/img/hero/book2.png" alt="book" />
-        </div>
+    <div id="checkout">
+      <section className="checkout-section">
         <div className="container">
-          <div className="page-heading">
-            <h1>Checkout</h1>
-            <div className="page-header">
-              <ul
-                className="breadcrumb-items wow fadeInUp"
-                data-wow-delay=".3s"
-              >
-                <li>
-                  <Link to="/">Home</Link>
-                </li>
-                <li>
-                  <i className="fa-solid fa-chevron-right"></i>
-                </li>
-                <li>Checkout</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
+          <div className="checkout-grid">
+            <div className="checkout-form-container">
+              <form onSubmit={handleSubmit} noValidate>
+                <div className="checkout-form-section">
+                  <h3>Billing Details</h3>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Full Name*</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                      />
+                      {errors.name && (
+                        <p className="error-msg">{errors.name}</p>
+                      )}
+                    </div>
 
-      {/* Checkout Section Start */}
-      <section className="checkout-section fix section-padding">
-        <div className="container">
-          <div className="row g-5">
-            <div className="col-lg-9">
-              <form>
-                <div className="checkout-single-wrapper">
-                  <div className="checkout-single boxshado-single">
-                    <h4>Billing Details</h4>
-                    <div className="checkout-single-form">
-                      <div className="row g-4">
-                        <div className="col-lg-6">
-                          <div className="input-single">
-                            <span>First Name*</span>
-                            <input
-                              type="text"
-                              name="user-first-name"
-                              id="userFirstName"
-                              required
-                              placeholder="First Name"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-lg-6">
-                          <div className="input-single">
-                            <span>Last Name*</span>
-                            <input
-                              type="text"
-                              name="user-last-name"
-                              id="userLastName"
-                              required
-                              placeholder="Last Name"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>Company name (optional)</span>
-                            <input name="company-name" id="companyname" />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>Country*</span>
-                            <input
-                              name="country"
-                              id="country"
-                              placeholder="Select a country"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>Street Address*</span>
-                            <input
-                              name="user-address"
-                              id="userAddress"
-                              placeholder="Home number and street name"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>Street Address*</span>
-                            <input
-                              name="user-address"
-                              id="userAddress2"
-                              placeholder="Apartment, suite, unit, etc. (optional)"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>Town/ City*</span>
-                            <input name="towncity" id="towncity" />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>Phone*</span>
-                            <input
-                              name="phone"
-                              id="phone"
-                              placeholder="phone"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>Email Address*</span>
-                            <input
-                              name="email"
-                              id="email22"
-                              placeholder="email"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-check payment-save">
-                            <input
-                              type="checkbox"
-                              className="form-check-input"
-                              name="save-for-next"
-                              id="saveForNext111"
-                            />
-                            <label htmlFor="saveForNext111">
-                              Save for my next payment
-                            </label>
-                          </div>
-                          <div className="input-check payment-save style-2">
-                            <input
-                              type="checkbox"
-                              className="form-check-input"
-                              name="save-for-next"
-                              id="saveForNext2"
-                            />
-                            <label htmlFor="saveForNext2">
-                              Ship to a different address?
-                            </label>
-                          </div>
-                        </div>
-                        <div className="col-lg-12">
-                          <div className="input-single">
-                            <span>order notes (optional)</span>
-                            <textarea
-                              name="notes"
-                              id="notes"
-                              placeholder="Notes about your order, e.g special notes for delivery."
-                            ></textarea>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="form-group">
+                      <label>Street Address*</label>
+                      <input
+                        name="address"
+                        value={formData.address}
+                        onChange={handleInputChange}
+                      />
+                      {errors.address && (
+                        <p className="error-msg">{errors.address}</p>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label>Postal Code*</label>
+                      <input
+                        name="postalCode"
+                        value={formData.postalCode}
+                        onChange={handleInputChange}
+                      />
+                      {errors.postalCode && (
+                        <p className="error-msg">{errors.postalCode}</p>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label>City/Town*</label>
+                      <select
+                        name="city"
+                        value={formData.city}
+                        onChange={handleInputChange}
+                      >
+                        <option value="">Select your city</option>
+                        <option value="Dhaka">Dhaka</option>
+                        <option value="Chattogram">Chattogram</option>
+                        <option value="Khulna">Khulna</option>
+                        <option value="Rajshahi">Rajshahi</option>
+                        <option value="Sylhet">Sylhet</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      {errors.city && (
+                        <p className="error-msg">{errors.city}</p>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label>Phone Number*</label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                      />
+                      {errors.phone && (
+                        <p className="error-msg">{errors.phone}</p>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label>Email Address*</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                      />
+                      {errors.email && (
+                        <p className="error-msg">{errors.email}</p>
+                      )}
+                    </div>
+
+                    <div className="form-group full-width">
+                      <label>Order Notes (Optional)</label>
+                      <textarea
+                        name="notes"
+                        value={formData.notes}
+                        onChange={handleInputChange}
+                        placeholder="Special instructions, delivery preferences, etc."
+                      ></textarea>
                     </div>
                   </div>
                 </div>
               </form>
             </div>
-            <div className="col-lg-3">
-              <div className="checkout-order-area">
-                <h3>Our Order</h3>
-                <div className="product-checout-area">
-                  <div className="checkout-item d-flex align-items-center justify-content-between">
-                    <p>Product</p>
-                    <p>Subtotal</p>
-                  </div>
-                  {orderItems.map((item, index) => (
-                    <div
-                      key={index}
-                      className="checkout-item d-flex align-items-center justify-content-between"
-                    >
-                      <p>{item.name}</p>
-                      <p>${item.price.toFixed(2)}</p>
+
+            <div className="order-summary-container">
+              <div className="order-summary">
+                <h3>Your Order</h3>
+                <div className="order-items">
+                  {cartItems.map((item, index) => (
+                    <div key={index} className="order-item">
+                      <div className="item-name">
+                        {item.name} <span>× {item.quantity}</span>
+                      </div>
+                      <div className="item-price">
+                        ৳{(item.price * item.quantity).toFixed(2)}
+                      </div>
                     </div>
                   ))}
-                  <div className="checkout-item d-flex justify-content-between">
-                    <p>Shipping</p>
-                    <div className="shopping-items">
-                      {shippingOptions.map((option) => (
-                        <div
-                          key={option.id}
-                          className="form-check d-flex align-items-center from-customradio"
-                        >
-                          <label className="form-check-label">
-                            {option.label}
-                          </label>
-                          <input
-                            className="form-check-input"
-                            type="radio"
-                            name="shippingOption"
-                            id={option.id}
-                            checked={selectedShipping.id === option.id}
-                            onChange={() => setSelectedShipping(option)}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                </div>
+
+                <div className="order-totals">
+                  <div className="total-row">
+                    <span>Subtotal</span>
+                    <span>৳{cartTotal.toFixed(2)}</span>
                   </div>
-                  <div className="checkout-item d-flex align-items-center justify-content-between">
-                    <p>Total</p>
-                    <p>${total.toFixed(2)}</p>
+                  <div className="total-row shipping">
+                    <span>Shipping</span>
+                    <span>
+                      {hasDiscountedShippingOffer() ? (
+                        <span className="free-shipping">
+                          ৳45 ( Discounted )
+                        </span>
+                      ) : (
+                        `৳${shippingCost.toFixed(2)} (${
+                          shippingLocation === "inside"
+                            ? "Inside Dhaka"
+                            : "Outside Dhaka"
+                        })`
+                      )}
+                    </span>
                   </div>
-                  <div className="checkout-item-2">
-                    {paymentMethods.map((method) => (
-                      <div
-                        key={method.id}
-                        className="form-check-2 d-flex align-items-center from-customradio-2"
-                      >
-                        <input
-                          className="form-check-input"
-                          type="radio"
-                          name="paymentMethod"
-                          id={method.id}
-                        />
-                        <label className="form-check-label" htmlFor={method.id}>
-                          {method.label}
-                        </label>
-                        {method.description && <p>{method.description}</p>}
-                        {method.logos && (
-                          <ul className="brand-logo">
-                            {method.logos.map((logo, index) => (
-                              <li key={index}>
-                                <Link to="/checkout">
-                                  <img
-                                    src={`assets/img/${logo}`}
-                                    alt="payment"
-                                  />
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
+                  <div className="total-row grand-total">
+                    <span>Total</span>
+                    <span>৳{totalWithShipping.toFixed(2)}</span>
                   </div>
                 </div>
+
+                <div className="payment-methods">
+                  <h4>Payment Method</h4>
+                  <div className="payment-option">
+                    <input
+                      type="radio"
+                      id="cod"
+                      name="paymentMethod"
+                      checked={paymentMethod === "cod"}
+                      onChange={() => setPaymentMethod("cod")}
+                    />
+                    <label htmlFor="cod">
+                      <span className="radio-custom"></span>
+                      <span className="payment-label">
+                        Cash on Delivery <br />
+                        (Advance Delivery Charge)
+                      </span>
+                    </label>
+                  </div>
+                  <div className="payment-option">
+                    <input
+                      type="radio"
+                      id="online"
+                      name="paymentMethod"
+                      checked={paymentMethod === "online"}
+                      onChange={() => setPaymentMethod("online")}
+                    />
+                    <label htmlFor="online">
+                      <span className="radio-custom"></span>
+                      <span className="payment-label">Online Payment</span>
+                      <div className="payment-icons">
+                        <img
+                          src="https://wp.logos-download.com/wp-content/uploads/2022/01/BKash_Logo_icon-700x662.png"
+                          alt="Bkash"
+                        />
+                        <img
+                          src="https://www.logo.wine/a/logo/Nagad/Nagad-Vertical-Logo.wine.svg"
+                          alt="Nagad"
+                        />
+                        <img
+                          src="assets/img/Mastercard2.png"
+                          alt="Mastercard"
+                        />
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <button
+                  className="place-order-btn"
+                  onClick={handleSubmit}
+                  disabled={isProcessing || cartItems.length === 0}
+                >
+                  {isProcessing ? (
+                    <span className="processing">Processing...</span>
+                  ) : (
+                    "Place Order"
+                  )}
+                </button>
               </div>
             </div>
           </div>
         </div>
       </section>
-    </>
-  );
-};
+    </div>
+  ); // Replace with your JSX form and error rendering as shown earlier
+}
 
-export default Checkout;
+export default CheckoutPage;
